@@ -1,96 +1,112 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <string.h>
-#include <syslog.h>
-#include <time.h>
 
-#define NUM_THREADS 10
+#define MEM_STRESS_SIZE_MB 2000 // Tamaño de memoria a utilizar en MB
+#define NUM_THREADS 8           // Número de hilos para estresar el CPU
+#define STRESS_DURATION 30      // Duración del estrés en segundos
+#define DISK_FILE_SIZE_MB 1000  // Tamaño del archivo en MB para estrés en disco
 
-// Función para crear el archivo de servicio systemd temporalmente
-void crear_servicio_systemd() {
-    const char *service_content = 
-    "[Unit]\n"
-    "Description=Servicio de prueba de estrés para generar logs\n"
-    "\n"
-    "[Service]\n"
-    "ExecStart=/bin/bash -c '/usr/bin/logger -t prueba_estres -p local0.alert \"Log generado con prioridad ALERT\"; /usr/bin/logger -t prueba_estres -p local0.crit \"Log generado con prioridad CRIT\"; /usr/bin/logger -t prueba_estres -p local0.err \"Log generado con prioridad ERR\"; /usr/bin/logger -t prueba_estres -p local0.warning \"Log generado con prioridad WARNING\"; /usr/bin/logger -t prueba_estres -p local0.notice \"Log generado con prioridad NOTICE\"; /usr/bin/logger -t prueba_estres -p local0.info \"Log generado con prioridad INFO\"; /usr/bin/logger -t prueba_estres -p local0.debug \"Log generado con prioridad DEBUG\"'\n"
-    "Restart=always\n"
-    "RestartSec=1\n"
-    "User=root\n"
-    "StandardOutput=journal\n"
-    "StandardError=journal\n"
-    "StartLimitInterval=0\n"
-    "\n"
-    "[Install]\n"
-    "WantedBy=multi-user.target\n";
-
-    // Crear el archivo de servicio en /etc/systemd/system
-    FILE *service_file = fopen("/etc/systemd/system/prueba_estres.service", "w");
-    if (!service_file) {
-        perror("No se pudo crear el archivo de servicio");
-        exit(EXIT_FAILURE);
+// Función para estresar el CPU
+void *estresar_cpu(void *arg) {
+    printf("Iniciando estrés en CPU...\n");
+    while (1) {
+        double x = 0.1;
+        for (int i = 0; i < 1000000; i++) {
+            x += x * x;
+        }
     }
-
-    fprintf(service_file, "%s", service_content);
-    fclose(service_file);
-
-    system("systemctl daemon-reload");
-    system("systemctl enable prueba_estres.service");
-    system("systemctl start prueba_estres.service");
+    return NULL;
 }
 
-// Función para generar logs con niveles de prioridad aleatorios
-void *generar_logs(void *arg) {
-    const char *priorities[] = {
-        "alert", "crit", "err", "warning", "notice", "info", "debug"
-    };
+// Función para estresar la memoria
+void estresar_memoria() {
+    printf("Iniciando estrés en memoria...\n");
+    size_t size = MEM_STRESS_SIZE_MB * 1024 * 1024; 
+    char *mem = (char *)malloc(size);
 
-    for (int i = 0; i < 50; i++) {  // Cada hilo genera 50 logs
-        time_t now = time(NULL);
-        struct tm *tm_info = localtime(&now);
-        char message[256];
-        strftime(message, sizeof(message), "%Y-%m-%d %H:%M:%S", tm_info);
-        int priority_index = rand() % 7;
-        char command[512];
-        snprintf(command, sizeof(command), "logger -t prueba_estres -p local0.%s \"%s Generando log de prueba\"", priorities[priority_index], message);
-        system(command);  
-
-        usleep(500000);  // Pausa de 500ms entre logs para evitar generar logs demasiado rápido
+    if (mem == NULL) {
+        perror("Error al asignar memoria");
+        return;
     }
 
-    return NULL;
+    memset(mem, 'A', size);
+    printf("Memoria de %d MB ocupada.\n", MEM_STRESS_SIZE_MB);
+
+    sleep(STRESS_DURATION);
+    free(mem);
+    printf("Memoria liberada.\n");
+}
+
+// Función para estresar el disco
+void estresar_disco() {
+    printf("Iniciando estrés en disco...\n");
+    FILE *file = fopen("disk_stress_test.tmp", "w");
+    if (file == NULL) {
+        perror("Error al crear archivo temporal");
+        return;
+    }
+
+    size_t size = DISK_FILE_SIZE_MB * 1024 * 1024; 
+    char *data = (char *)malloc(1024); 
+    if (data == NULL) {
+        perror("Error al asignar memoria para disco");
+        fclose(file);
+        return;
+    }
+
+    memset(data, 'A', 1024); 
+    size_t written = 0;
+
+    while (written < size) {
+        fwrite(data, 1, 1024, file);
+        written += 1024;
+    }
+
+    printf("Archivo de %d MB escrito en disco.\n", DISK_FILE_SIZE_MB);
+    fflush(file);
+
+    sleep(STRESS_DURATION);
+
+    fclose(file);
+    free(data);
+
+    // Eliminar el archivo temporal
+    if (remove("disk_stress_test.tmp") == 0) {
+        printf("Archivo temporal eliminado.\n");
+    } else {
+        perror("Error al eliminar archivo temporal");
+    }
 }
 
 int main() {
     pthread_t threads[NUM_THREADS];
     int i;
 
-    printf("Iniciando prueba de estrés...\n");
+    printf("Duración del estrés: %d segundos\n", STRESS_DURATION);
 
-    // Crear el archivo de servicio de systemd temporalmente
-    crear_servicio_systemd();
-
-    // Crear NUM_THREADS hilos que generarán logs en paralelo
     for (i = 0; i < NUM_THREADS; i++) {
-        if (pthread_create(&threads[i], NULL, generar_logs, NULL) != 0) {
-            perror("Error creando hilo");
+        if (pthread_create(&threads[i], NULL, estresar_cpu, NULL) != 0) {
+            perror("Error al crear hilo");
             exit(EXIT_FAILURE);
         }
     }
 
+    // Estresar la memoria
+    estresar_memoria();
+
+    // Estresar el disco
+    estresar_disco();
+
+    // Esperar el tiempo de duración del estrés
+    sleep(STRESS_DURATION);
+
     for (i = 0; i < NUM_THREADS; i++) {
-        pthread_join(threads[i], NULL);
+        pthread_cancel(threads[i]);
     }
 
-    sleep(5);
-
-    // Detener y deshabilitar el servicio después de la prueba
-    system("systemctl stop prueba_estres.service");
-    system("systemctl disable prueba_estres.service");
-
-    printf("Prueba de estrés completada. Logs generados.\n");
-
+    printf("Estrés finalizado.\n");
     return 0;
 }
