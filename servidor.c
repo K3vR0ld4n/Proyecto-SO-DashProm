@@ -28,13 +28,7 @@ void enviar_alerta(const char *cliente, const char *metrica, float valor)
     const char *auth_token = getenv("TWILIO_AUTH_TOKEN");
     const char *twilio_whatsapp_number = getenv("TWILIO_WHATSAPP_NUMBER");
     const char *recipient_whatsapp_number = getenv("TWILIO_RECIPIENT_WHATSAPP_NUMBER");
-    /*
-        if (!account_sid || !auth_token || !twilio_whatsapp_number || !recipient_whatsapp_number)
-        {
-            fprintf(stderr, "Error: Faltan variables de entorno para Twilio\n");
-            return;
-        }
-    */
+  
     if (!account_sid)
     {
         fprintf(stderr, "Error: Falta la variable de entorno TWILIO_ACCOUNT_SID\n");
@@ -106,22 +100,22 @@ void enviar_alerta(const char *cliente, const char *metrica, float valor)
 void procesar_metrica(char *mensaje)
 {
     char cliente[50];
-    float cpu_usage, mem_usage, disk_usage, temp_cpu, net_usage;
+    float cpu_usage, mem_usage, disk_usage, temp_cpu, net_usage, swap_usage;
     int procesos;
 
     sscanf(mensaje,
-           "CLIENTE: %49[^\n]\nCPU: %f\nMEMORIA: %f\nDISCO: %f\nPROCESOS: %d\nTEMPERATURA_CPU: %f\nRED: %f\n",
-           cliente, &cpu_usage, &mem_usage, &disk_usage, &procesos, &temp_cpu, &net_usage);
+           "CLIENTE: %49[^\n]\nCPU: %f\nMEMORIA: %f\nDISCO: %f\nPROCESOS: %d\nTEMPERATURA_CPU: %f\nRED: %f\nSWAP: %f\n",
+           cliente, &cpu_usage, &mem_usage, &disk_usage, &procesos, &temp_cpu, &net_usage,&swap_usage);
 
-    // Imprimir las métricas con símbolos correspondientes
     printf("\n--- Dashboard ---\n");
     printf("Cliente: %s\n", cliente);
-    printf("Uso de CPU: %.2f%%\n", cpu_usage);     // Agregar el símbolo de porcentaje
-    printf("Uso de Memoria: %.2f%%\n", mem_usage); // Agregar el símbolo de porcentaje
-    printf("Uso de Disco: %.2f%%\n", disk_usage);  // Agregar el símbolo de porcentaje
+    printf("Uso de CPU: %.2f%%\n", cpu_usage);     
+    printf("Uso de Memoria: %.2f%%\n", mem_usage); 
+    printf("Uso de Disco: %.2f%%\n", disk_usage);  
     printf("Número de Procesos: %d\n", procesos);
-    printf("Temperatura del CPU: %.2f°C\n", temp_cpu); // Agregar el símbolo de grados Celsius
-    printf("Uso de Red: %.2f KB/s\n", net_usage);      // Indicar que está en KB/s
+    printf("Temperatura del CPU: %.2f°C\n", temp_cpu); 
+    printf("Uso de Red: %.2f KB/s\n", net_usage);   
+    printf("Uso de Memoria Swap: %.2f%%\n", swap_usage);         
     printf("-----------------\n");
 
     // Verificar alertas
