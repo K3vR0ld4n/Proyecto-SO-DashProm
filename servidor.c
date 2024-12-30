@@ -28,13 +28,34 @@ void enviar_alerta(const char *cliente, const char *metrica, float valor)
     const char *auth_token = getenv("TWILIO_AUTH_TOKEN");
     const char *twilio_whatsapp_number = getenv("TWILIO_WHATSAPP_NUMBER");
     const char *recipient_whatsapp_number = getenv("TWILIO_RECIPIENT_WHATSAPP_NUMBER");
-
-    if (!account_sid || !auth_token || !twilio_whatsapp_number || !recipient_whatsapp_number)
+    /*
+        if (!account_sid || !auth_token || !twilio_whatsapp_number || !recipient_whatsapp_number)
+        {
+            fprintf(stderr, "Error: Faltan variables de entorno para Twilio\n");
+            return;
+        }
+    */
+    if (!account_sid)
     {
-        fprintf(stderr, "Error: Faltan variables de entorno para Twilio\n");
-        return;
+        fprintf(stderr, "Error: Falta la variable de entorno TWILIO_ACCOUNT_SID\n");
+        return 1;
     }
-
+    if (!auth_token)
+    {
+        fprintf(stderr, "Error: Falta la variable de entorno TWILIO_AUTH_TOKEN\n");
+        return 1;
+    }
+    if (!twilio_whatsapp_number)
+    {
+        fprintf(stderr, "Error: Falta la variable de entorno TWILIO_WHATSAPP_NUMBER\n");
+        return 1;
+    }
+    if (!recipient_whatsapp_number)
+    {
+        fprintf(stderr, "Error: Falta la variable de entorno TWILIO_RECIPIENT_WHATSAPP_NUMBER\n");
+        return 1;
+    }
+    
     curl_global_init(CURL_GLOBAL_ALL);
     curl = curl_easy_init();
     if (curl)
@@ -88,19 +109,19 @@ void procesar_metrica(char *mensaje)
     float cpu_usage, mem_usage, disk_usage, temp_cpu, net_usage;
     int procesos;
 
-    sscanf(mensaje, 
+    sscanf(mensaje,
            "CLIENTE: %49[^\n]\nCPU: %f\nMEMORIA: %f\nDISCO: %f\nPROCESOS: %d\nTEMPERATURA_CPU: %f\nRED: %f\n",
            cliente, &cpu_usage, &mem_usage, &disk_usage, &procesos, &temp_cpu, &net_usage);
 
     // Imprimir las métricas con símbolos correspondientes
     printf("\n--- Dashboard ---\n");
     printf("Cliente: %s\n", cliente);
-    printf("Uso de CPU: %.2f%%\n", cpu_usage);  // Agregar el símbolo de porcentaje
-    printf("Uso de Memoria: %.2f%%\n", mem_usage);  // Agregar el símbolo de porcentaje
+    printf("Uso de CPU: %.2f%%\n", cpu_usage);     // Agregar el símbolo de porcentaje
+    printf("Uso de Memoria: %.2f%%\n", mem_usage); // Agregar el símbolo de porcentaje
     printf("Uso de Disco: %.2f%%\n", disk_usage);  // Agregar el símbolo de porcentaje
     printf("Número de Procesos: %d\n", procesos);
-    printf("Temperatura del CPU: %.2f°C\n", temp_cpu);  // Agregar el símbolo de grados Celsius
-    printf("Uso de Red: %.2f KB/s\n", net_usage);  // Indicar que está en KB/s
+    printf("Temperatura del CPU: %.2f°C\n", temp_cpu); // Agregar el símbolo de grados Celsius
+    printf("Uso de Red: %.2f KB/s\n", net_usage);      // Indicar que está en KB/s
     printf("-----------------\n");
 
     // Verificar alertas
@@ -113,7 +134,7 @@ void procesar_metrica(char *mensaje)
     {
         enviar_alerta(cliente, "Memoria", mem_usage);
     }
-    
+
     if (disk_usage > DISCO_THRESHOLD)
     {
         enviar_alerta(cliente, "Disco", disk_usage);
