@@ -1,124 +1,158 @@
-# Proyecto_Parcial_SO_LokiLite
+# **Proyecto_Parcial_SO_LokiLite**
 
-Este README explica cómo utilizar el sistema de monitoreo de logs que hemos desarrollado. El sistema incluye un **agente**, un **cliente** y un **servidor**, y es capaz de monitorear logs de diferentes servicios de un sistema Linux y enviar alertas a través de WhatsApp cuando se superan ciertos umbrales.
-
----
-
-### **Requisitos previos**:
-
-- **Twilio API**: Para enviar alertas por WhatsApp, necesitas una cuenta de Twilio. Debes tener tu **`ACCOUNT_SID`**, **`AUTH_TOKEN`**, y los números de teléfono correspondientes.
-- **Linux**: El proyecto está diseñado para ser ejecutado en sistemas basados en Linux con `journalctl` disponible para acceder a los logs del sistema.
-- **cURL**: Se utiliza la librería `libcurl` para enviar los mensajes de alerta a través de la API de Twilio desde C. Asegúrate de tenerla instalada.
+Este README explica cómo utilizar el sistema de monitoreo de métricas que hemos desarrollado. El sistema incluye un **agente**, un **cliente**, un **servidor**, y un programa de **prueba de estrés**. Este sistema es capaz de monitorear métricas del sistema en tiempo real, enviar alertas a través de WhatsApp cuando se superan ciertos umbrales, y simular situaciones de alto consumo de recursos para validar su funcionamiento.
 
 ---
 
-### **Estructura del proyecto**:
+### **Requisitos previos**
 
-- **agente.c**: Monitorea los logs de los servicios que se pasan como argumentos y cuenta cuántos logs hay para diferentes niveles de prioridad.
-- **cliente.c**: Envía los datos de los logs generados por el **agente** al **servidor**.
-- **servidor.c**: Recibe los datos del cliente, verifica si se superan los umbrales de los logs para cada servicio y envía una alerta si es necesario.
-- **prueba_estres.c**: Un ejecutable que simula un servicio generando múltiples logs para probar el sistema de alertas. Este programa debe ejecutarse con privilegios de administrador para poder escribir logs.
+- **Twilio API**: Para enviar alertas por WhatsApp, necesitas una cuenta de Twilio con tu **`ACCOUNT_SID`**, **`AUTH_TOKEN`**, y los números de teléfono correspondientes.
+- **Linux**: El proyecto está diseñado para sistemas basados en Linux.
+- **Dependencias**:
+  - `libcurl`: Utilizada para interactuar con la API de Twilio.
+  - Herramientas del sistema como `free`, `sensors`, `df`, y `ip` deben estar disponibles.
+  - Opcional: `sensors-detect` para configurar monitoreo de temperatura.
 
-### **Cómo ejecutar el proyecto**:
+---
 
-#### 1. **Compilación**:
+### **Estructura del proyecto**
 
-Primero, compila todos los archivos del proyecto utilizando el `Makefile`:
+1. **`agente.c`**:
+   - Recolecta las métricas del sistema, incluyendo:
+     - Uso de CPU.
+     - Uso de memoria.
+     - Uso de disco.
+     - Número de procesos en ejecución.
+     - Temperatura del CPU.
+     - Uso de red.
+   - Genera un dashboard tabular con las métricas.
+   - Soporta el paso de parámetros para personalizar el nombre del cliente.
+
+2. **`cliente.c`**:
+   - Ejecuta periódicamente al **agente** y captura su salida.
+   - Transmite los datos recolectados al **servidor** a través de sockets TCP.
+   - Permite personalizar el intervalo de actualización a través de un argumento.
+
+3. **`servidor.c`**:
+   - Recibe y procesa las métricas enviadas por los clientes.
+   - Monitorea si alguna métrica supera los umbrales definidos.
+   - Envía alertas vía WhatsApp utilizando la API de Twilio.
+   - Ajusta dinámicamente los umbrales para evitar alertas excesivas.
+
+4. **`prueba_estres.c`**:
+   - Simula cargas intensas de CPU, memoria y disco para validar el sistema.
+   - Los parámetros de estrés son configurables (memoria, hilos, duración, archivo en disco).
+
+---
+
+### **Cómo ejecutar el proyecto**
+
+#### **1. Compilación**
+
+Compila los archivos del proyecto utilizando el `Makefile` incluido:
 
 ```bash
 make
 ```
 
-Esto generará los ejecutables **`agente`**, **`cliente`**, **`servidor`**, y **`prueba_estres`**.
+Esto generará los ejecutables: **`agente`**, **`cliente`**, **`servidor`**, y **`prueba_estres`**.
 
-#### 2. **Ejecución**:
+---
 
-- **Ejecuta el servidor**:
-  
-  El servidor espera recibir datos del cliente y procesarlos. Ejecuta el servidor en una terminal:
+#### **2. Ejecución**
 
-  ```bash
-  ./servidor
-  ```
+1. **Ejecuta el servidor**:
+   En una terminal, inicia el servidor que recibirá los datos de los clientes:
 
-- **Ejecuta el cliente**:
+   ```bash
+   ./servidor
+   ```
 
-  El cliente ejecuta al **agente** en un intervalo y pasa los resultados al servidor. Para ejecutar el cliente, debes proporcionar los servicios que deseas monitorear como argumentos. Por ejemplo:
+2. **Ejecuta el cliente**:
+   Inicia el cliente especificando las métricas a monitorear y el intervalo de actualización (en segundos):
 
-  ```bash
-  ./cliente sshd cron apache2
-  ```
+   ```bash
+   ./cliente <nombre_cliente> <intervalo_actualizacion>
+   ```
 
-  Puedes pasar tantos servicios como desees monitorear.
+   - Si no se especifica un nombre, se usará el nombre del host.
+   - Si no se especifica el intervalo, se utilizará un valor predeterminado de 5 segundos.
 
-- **Ejecuta el programa de prueba de estrés**:
+   **Ejemplo**:
+   ```bash
+   ./cliente Cliente1 10
+   ```
 
-  Para probar el sistema de alertas y ver cómo se comporta con logs generados por un servicio ficticio, ejecuta el siguiente comando:
+3. **Ejecuta el programa de prueba de estrés**:
+   Simula altas cargas en el sistema para validar el comportamiento del servidor:
 
-  ```bash
-  sudo ./prueba_estres
-  ```
+   ```bash
+   ./prueba_estres -m 4000 -t 16 -d 60 -f 2000
+   ```
 
-  **Nota**: Este programa debe ejecutarse con privilegios de administrador (usando `sudo`) para generar los logs necesarios.
+   - **`-m`**: Memoria en MB.
+   - **`-t`**: Número de hilos.
+   - **`-d`**: Duración en segundos.
+   - **`-f`**: Tamaño del archivo de disco en MB.
+   - Para ayuda:
+     ```bash
+     ./prueba_estres -h
+     ```
 
-### **Configuración de Twilio para enviar alertas por WhatsApp**:
+---
 
-Antes de ejecutar el servidor, debes configurar las variables de entorno con los datos necesarios de Twilio. Agrega las siguientes líneas a tu archivo **`.bashrc`** o **`.bash_profile`**:
+### **Configuración de Twilio**
 
-1. Abre tu archivo de configuración (dependiendo de tu shell, usa **.bashrc** o **.bash_profile**):
-   
+Antes de ejecutar el servidor, configura las variables de entorno necesarias:
+
+1. Edita tu archivo de configuración:
    ```bash
    nano ~/.bashrc  # o ~/.bash_profile
    ```
 
-2. Agrega las siguientes líneas al final del archivo:
-
+2. Agrega las siguientes líneas al final:
    ```bash
-   export TWILIO_ACCOUNT_SID="tu_Twilio_account_SID"
-   export TWILIO_AUTH_TOKEN="tu_Twilio_auth_token"
-   export TWILIO_WHATSAPP_NUMBER="whatsapp:numero_Twilio(por lo general +14155238886)"
-   export TWILIO_RECIPIENT_WHATSAPP_NUMBER="whatsapp:tu_numero"
+   export TWILIO_ACCOUNT_SID="tu_account_sid"
+   export TWILIO_AUTH_TOKEN="tu_auth_token"
+   export TWILIO_WHATSAPP_NUMBER="whatsapp:+14155238886"
+   export TWILIO_RECIPIENT_WHATSAPP_NUMBER="whatsapp:+1234567890"
    ```
 
-   - **`TWILIO_ACCOUNT_SID`**: El SID de tu cuenta de Twilio.
-   - **`TWILIO_AUTH_TOKEN`**: El token de autenticación de Twilio.
-   - **`TWILIO_WHATSAPP_NUMBER`**: El número de WhatsApp de Twilio desde el cual se enviarán las alertas.
-   - **`TWILIO_RECIPIENT_WHATSAPP_NUMBER`**: El número de WhatsApp del destinatario (tu número o el número al cual deseas recibir la alerta).
-
-3. Guarda el archivo y luego carga los cambios:
-
+3. Guarda el archivo y recarga las variables:
    ```bash
-   source ~/.bashrc  # o source ~/.bash_profile
+   source ~/.bashrc
    ```
 
-   Esto cargará las nuevas variables de entorno.
+---
 
+### **Alertas y Umbrales**
 
-### **Lógica de las alertas**:
+- El servidor envía alertas cuando una métrica supera un umbral predefinido.
+- Se envían hasta **5 alertas** consecutivas por servicio. Si se alcanzan, el umbral se duplica para evitar alertas excesivas.
+- Las alertas incluyen:
+  - Nombre del cliente.
+  - Métrica que excedió el umbral.
+  - Valor actual y umbral definido.
 
-El **servidor** gestionará las alertas de la siguiente manera:
-1. **Envío de alertas**: El servidor enviará alertas cuando el número de logs de un servicio supere un umbral determinado.
-2. **Máximo de 5 alertas por servicio**: Por cada servicio, se pueden enviar hasta 5 alertas. Una vez que se alcanzan las 5 alertas, el umbral se duplicara.
-3. **Restablecimiento del umbral**: El servidor continuará monitorizando los servicios. Si el nuevo umbral se supera, se restablece el contador de alertas y se pueden enviar otras 5 alertas antes de que el umbral vuelva a incrementarse.
+---
 
+### **Dependencias**
 
-### **Dependencias**:
+1. **Librerías necesarias**:
+   - Instala `libcurl`:
+     ```bash
+     sudo apt-get install libcurl4-openssl-dev
+     ```
 
-- **Twilio SDK**: El servidor usa la API de Twilio para enviar alertas por WhatsApp. Asegúrate de tener configuradas las variables de entorno mencionadas anteriormente.
-  
-- **Librerías necesarias**: El proyecto utiliza semáforos para sincronización y **`libcurl`** para enviar las alertas a través de la API de Twilio. Asegúrate de tener `libcurl` instalada en tu sistema.
+2. **Herramientas del sistema**:
+   - Asegúrate de tener disponibles los comandos:
+     - `free`: Para monitorear el uso de memoria.
+     - `df`: Para monitorear el uso de disco.
+     - `sensors`: Para monitorear la temperatura del CPU.
+     - `ip`: Para monitorear el uso de red.
+   - Configura `sensors` si es necesario:
+     ```bash
+     sudo sensors-detect
+     ```
 
-  Para instalar `libcurl` en sistemas basados en Debian/Ubuntu, puedes usar:
-
-  ```bash
-  sudo apt-get install libcurl4-openssl-dev
-  ```
-
-### **Comandos útiles**:
-
-- **Limpiar los archivos generados**:
-  Si deseas limpiar los archivos compilados (ejecutables), puedes usar:
-
-  ```bash
-  make clean
-  ```
+---
